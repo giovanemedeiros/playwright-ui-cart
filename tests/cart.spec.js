@@ -85,6 +85,8 @@ test.describe('Shopping Cart - Serverest', () => {
 
   // ---- [CT02] Add multiple products to cart ----
   test('Should add multiple products to cart and calculate total successfully', async ({ page, request }) => {
+    test.setTimeout(60000);
+    
     // Get incremental number and create user via API
     const userNumber = getNextUserNumber();
     const randomUser = `testqap2v${userNumber}`;
@@ -166,6 +168,8 @@ test.describe('Shopping Cart - Serverest', () => {
   
   // ---- [CT03] Increment product quantity in cart ----
   test('Should increment product quantity in cart successfully', async ({ page, request }) => {
+    test.setTimeout(60000);
+
     // Get incremental number and create user via API
     const userNumber = getNextUserNumber();
     const randomUser = `testqap2v${userNumber}`;
@@ -376,5 +380,94 @@ test.describe('Shopping Cart - Serverest', () => {
   });
 
   // ---- [CT05] Remove product from cart ----
+  test('Should clear shopping cart list and display empty cart message successfully', async ({ page, request }) => {
+    test.setTimeout(60000)
+    // Get incremental number and create user via API
+    const userNumber = getNextUserNumber();
+    const randomUser = `testqap2v${userNumber}`;
+    const randomEmail = `testqap2v${userNumber}@email.com`;
+    
+    // Silent user registration via API (Background)
+    await request.post('https://serverest.dev/usuarios', {
+      data: {
+        nome: randomUser,
+        email: randomEmail,
+        password: 'testqa26',
+        administrador: 'false'
+      }
+    });
+
+    // Silent login
+    const loginResponse = await request.post('https://serverest.dev/login', {
+      data: {
+        email: randomEmail,
+        password: 'testqa26'
+      }
+    });
+
+    const { authorization } = await loginResponse.json();
+
+    // Inject token into browser's localStorage before loading page
+    await page.addInitScript(({ token }) => {
+      window.localStorage.setItem('serverest/userToken', token);
+    }, authorization);
+
+    // Opens DIRECTLY at store home page already logged in!
+    await page.goto('https://front.serverest.dev/home');
+    await expect(page.getByText(/serverest store/i)).toBeVisible();
+    await page.waitForTimeout(2000);
+
+    // Navigate to FIRST product details
+    await page.getByText('Detalhes').first().click();
+    await page.waitForTimeout(2000);
+
+    // Get first product name and price
+    const firstProductName = await page.getByTestId('product-detail-name').first().textContent();
+    const firstProductRawPrice = await page.getByRole('heading', { name: 'R$:' }).first().textContent();
+    const firstProductPrice = firstProductRawPrice.replace('R$:', '').trim();
+
+    // Add first product to cart list
+    await page.getByTestId('adicionarNaLista').click();
+    await page.waitForTimeout(2000);
+
+    // Opens store home page again
+    await page.goto('https://front.serverest.dev/home');
+    await expect(page.getByText(/serverest store/i)).toBeVisible();
+    await page.waitForTimeout(2000);
+
+    // Navigate to SECOND product details (index 1 on home page)
+    await page.getByText('Detalhes').nth(1).click();
+    await page.waitForTimeout(2000);
+
+    // Get second product name and price (.first() on product details page)
+    const secondProductName = await page.getByTestId('product-detail-name').first().textContent();
+    const secondProductRawPrice = await page.getByRole('heading', { name: 'R$:' }).first().textContent();
+    const secondProductPrice = secondProductRawPrice.replace('R$:', '').trim();
+
+    // Add second product to cart list
+    await page.getByTestId('adicionarNaLista').click();
+    await page.waitForTimeout(2000);
+
+    // Assertions on shopping cart list page
+    await expect(page.getByRole('heading', { name: 'Lista de Compras' })).toBeVisible();
+
+    // Validate Product 1 and its price
+    await expect(page.getByText(new RegExp(`Produto:.*${firstProductName.trim()}`, 'i'))).toBeVisible();
+    await expect(page.getByText(new RegExp(`Preço.*${firstProductPrice}`, 'i'))).toBeVisible();
+    
+    // Validate Product 2 and its price
+    await expect(page.getByText(new RegExp(`Produto:.*${secondProductName.trim()}`, 'i'))).toBeVisible();
+    await expect(page.getByText(new RegExp(`Preço.*${secondProductPrice}`, 'i'))).toBeVisible();
+    await page.waitForTimeout(2000);
+
+    await page.getByTestId('limparLista').click();
+    await expect(page.getByTestId('shopping-cart-empty-message')).toBeVisible();
+
+    // Negative assertions (Ensure products were removed from UI)
+    await expect(page.getByText(new RegExp(`Produto:.*${firstProductName.trim()}`, 'i'))).not.toBeVisible();
+    await expect(page.getByText(new RegExp(`Produto:.*${secondProductName.trim()}`, 'i'))).not.toBeVisible();
+
+    await page.waitForTimeout(5000);
+  });
 
 });
