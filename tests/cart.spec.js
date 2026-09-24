@@ -150,7 +150,7 @@ test.describe('Shopping Cart - Serverest', () => {
     // Add second product to cart list
     await page.getByTestId('adicionarNaLista').click();
     await page.waitForTimeout(2000);
-    
+
     // Assertions on shopping cart list page
     await expect(page.getByRole('heading', { name: 'Lista de Compras' })).toBeVisible();
 
@@ -164,8 +164,80 @@ test.describe('Shopping Cart - Serverest', () => {
     await page.waitForTimeout(5000);
   });
   
-  // ---- [CT03] Validate cart total ----
-  
+  // ---- [CT03] Increment product quantity in cart ----
+  test('Should increment product quantity in cart successfully', async ({ page, request }) => {
+    // Get incremental number and create user via API
+    const userNumber = getNextUserNumber();
+    const randomUser = `testqap2v${userNumber}`;
+    const randomEmail = `testqap2v${userNumber}@email.com`;
+    
+    // Silent user registration via API (Background)
+    await request.post('https://serverest.dev/usuarios', {
+      data: {
+        nome: randomUser,
+        email: randomEmail,
+        password: 'testqa26',
+        administrador: 'false'
+      }
+    });
+
+    // Silent login
+    const loginResponse = await request.post('https://serverest.dev/login', {
+      data: {
+        email: randomEmail,
+        password: 'testqa26'
+      }
+    });
+
+    const { authorization } = await loginResponse.json();
+
+    // Inject token into browser's localStorage before loading page
+    await page.addInitScript(({ token }) => {
+      window.localStorage.setItem('serverest/userToken', token);
+    }, authorization);
+
+    // Opens DIRECTLY at store home page already logged in!
+    await page.goto('https://front.serverest.dev/home');
+    await expect(page.getByText(/serverest store/i)).toBeVisible();
+    await page.waitForTimeout(2000);
+
+    // Navigate to product details
+    await page.getByText('Detalhes').first().click();
+    await page.waitForTimeout(2000);
+
+    // Get product name and unit price
+    const productName = await page.getByTestId('product-detail-name').first().textContent();
+    const rawPrice = await page.getByRole('heading', { name: 'R$:' }).first().textContent();
+    const unitPrice = Number(rawPrice.replace('R$:', '').trim());
+
+    // Add product to cart list
+    await page.getByTestId('adicionarNaLista').click();
+    await page.waitForTimeout(2000);
+
+    // Validate cart page heading and total quantity
+    await expect(page.getByRole('heading', { name: 'Lista de Compras' })).toBeVisible();
+    await expect(page.getByText('Total: 1')).toBeVisible();
+
+    // Validate product quantity increase button is visible
+    await expect(page.getByTestId('product-increase-quantity')).toBeVisible();
+    await page.waitForTimeout(2000);
+
+    // Increase product quantity two times
+    await page.getByTestId('product-increase-quantity').click();
+    await page.waitForTimeout(2000);
+    await page.getByTestId('product-increase-quantity').click();
+    await page.waitForTimeout(2000)
+
+    const expectedTotalPrice = unitPrice * 3;
+
+    // Assertions on shopping cart list page
+    await expect(page.getByRole('heading', { name: 'Lista de Compras' })).toBeVisible();
+    await expect(page.getByText(new RegExp(`Produto:.*${productName.trim()}`, 'i'))).toBeVisible();
+    await expect(page.getByText('Total: 3')).toBeVisible();
+    await expect(page.getByText(new RegExp(`Preço.*${expectedTotalPrice}`, 'i'))).toBeVisible();
+    await page.waitForTimeout(5000);
+  });
+
   // ---- [CT04] Update product quantity in cart ----
 
   // ---- [CT05] Remove product from cart ----
